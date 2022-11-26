@@ -29,7 +29,8 @@ from torch.autograd import Function
 
 from Utils import *
 
-device = torch.device('cuda:0')
+use_cuda = torch.cuda.is_available()
+device = torch.device('cuda:0' if use_cuda else 'cpu')
 
 class GradientReversalFunction(Function):
     """

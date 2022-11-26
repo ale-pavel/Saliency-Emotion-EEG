@@ -17,7 +17,7 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 '''
 from statistics import multimode
-from Models import *
+from Models_DEAP import *
 from Utils import *
 from Utils_Bashivan import *
 import time
@@ -39,7 +39,8 @@ Dataset = CombDataset(label=Label, image=X_image, array=X_array) #creation of
 #dataset classs in Pytorch
 
 # electrodes locations in 3D -> 2D projection
-locs_3d = np.load('Electroloc/Neuro_loc_SEED_IV.npy')[:31]
+#locs_3d = np.load('Electroloc/Neuro_loc_SEED_IV.npy')[:31]
+locs_3d = np.load('Electroloc/Neuro_loc_DEAP.npy')[:31]
 locs_2d = []
 for e in locs_3d:
     locs_2d.append(azim_proj(e))
