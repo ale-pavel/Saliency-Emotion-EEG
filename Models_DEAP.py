@@ -409,6 +409,12 @@ class BiHDM(nn.Module):
         
         HL_id = [0, 5, 14, 23, 32, 41, 50, 57, 3, 6, 15, 24, 33, 42, 51, 58, 7, 16, 25, 34, 43, 52, 8, 17, 26, 35, 44]
         HR_id = [2, 13, 22, 31, 40, 49, 56, 61, 4, 12, 21, 30, 39, 48, 55, 60, 11, 20, 29, 38, 47, 54, 10, 19, 28, 37, 46]
+
+        DEAP_HL_id = [0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10, 12, 13]
+        DEAP_HR_id = [16, 17, 20, 19, 21, 22, 25, 24, 26, 27, 29, 28, 30, 31]
+        DEAP_VL_id = [0, 3, 7, 11, 1, 4, 8, 13, 2, 6, 10, 12, 5, 9]
+        DEAP_VR_id = [16, 20, 25, 29, 17, 21, 26, 31, 19, 24, 28, 30, 22, 27]
+
         eps = 1e-12
         x_vl, _ = self.RNN_VL(x[:, VL_id].permute(1, 0, 2), h0)
         x_vr, _ = self.RNN_VL(x[:, VR_id].permute(1, 0, 2), h0)
@@ -528,7 +534,7 @@ class RegionRNN(nn.Module):
         # Set initial states
         self.batch_size = x.shape[0]
         
-        x = self.b_n1(x.permute(0,2,1).view(x.shape[0], 5, 1, -1 ))[:,:,0].permute(0,2,1)
+        x = self.b_n1(x.permute(0,2,1).reshape(x.shape[0], 5, 1, -1 ))[:,:,0].permute(0,2,1)
         
         h0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(device)
         
@@ -601,7 +607,7 @@ class MultiModel(nn.Module):
             nn.Linear(128, 16),
             nn.Dropout(0.5),
             nn.ReLU(),
-            nn.Linear(16, 2),
+            nn.Linear(16, 4),
             )
 
         self.Discriminator = nn.Sequential(
