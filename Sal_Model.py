@@ -17,7 +17,7 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 '''
 from statistics import multimode
-from Models_DEAP import *
+from Models import *
 from Utils import *
 from Utils_Bashivan import *
 import time
