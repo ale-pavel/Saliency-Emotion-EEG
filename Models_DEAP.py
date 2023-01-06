@@ -363,16 +363,20 @@ class RRNN(nn.Module):
 
 
 class BiHDM(nn.Module):
-
-    def __init__(self):
+    def __init__(self, hidden_size=32, num_layers=2, input_size=5, fc_input=864, fc_hidden=96, n_classes=1,
+                 batch_first=False, bidirectional=False):
         super(BiHDM, self).__init__()
 
-        self.hidden_size = 32
-        self.num_layers = 2
-        self.input_size = 5
+        self.hidden_size = hidden_size  # electrode number / 2? 62/2 for SEED for example, not sure
+        self.num_layers = num_layers
+        self.input_size = input_size  # 4-5 freq. bands for SEED/DEAP. Has to be multiplied by stft resolution?
 
-        self.batch_first = False
-        self.bidirectional = False
+        self.fc_input = fc_input
+        self.fc_hidden = fc_hidden
+        self.n_classes = n_classes
+
+        self.batch_first = batch_first
+        self.bidirectional = bidirectional
 
         self.RNN_VL = nn.RNN(self.input_size, self.hidden_size, self.num_layers, batch_first = self.batch_first, bidirectional = self.bidirectional)
         self.RNN_VR = nn.RNN(self.input_size, self.hidden_size, self.num_layers, batch_first = self.batch_first, bidirectional = self.bidirectional)
@@ -385,63 +389,58 @@ class BiHDM(nn.Module):
         self.RNN_H = nn.RNN(self.hidden_size, self.hidden_size, self.num_layers, batch_first = self.batch_first, bidirectional = self.bidirectional)
 
         self.fc_v = nn.Sequential(
-            nn.Linear(864, 96),
+            nn.Linear(fc_input, fc_hidden),
             nn.ReLU(),
             )
 
         self.fc_h = nn.Sequential(
-            nn.Linear(864, 96),
+            nn.Linear(fc_input, fc_hidden),
             nn.ReLU(),
             )
 
         self.fc_c = nn.Sequential(
-            nn.Linear(96, 4),
-            #nn.LogSoftmax(),
+            nn.Linear(fc_hidden, n_classes),  # 1 class instead of 4, for either valence/arousal instead of quadrants
+            # nn.LogSoftmax(),
             )
-
 
     def forward(self, x):
         # Set initial states
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device)# 2 for bidirection 
-        
-        VL_id = [0, 3, 5, 6, 7, 8, 14, 15, 16, 17, 23, 24, 25, 26, 32, 33, 34, 35, 41, 42, 43, 44, 50, 51, 52, 58, 57]
-        VR_id = [2, 4, 13, 12, 11, 10, 22, 21, 20, 19, 31, 30, 29, 28, 40, 39, 38, 37, 49, 48, 47, 46, 56, 55, 54, 60, 61]
-        
-        HL_id = [0, 5, 14, 23, 32, 41, 50, 57, 3, 6, 15, 24, 33, 42, 51, 58, 7, 16, 25, 34, 43, 52, 8, 17, 26, 35, 44]
-        HR_id = [2, 13, 22, 31, 40, 49, 56, 61, 4, 12, 21, 30, 39, 48, 55, 60, 11, 20, 29, 38, 47, 54, 10, 19, 28, 37, 46]
+        h0 = torch.zeros(self.num_layers, x.shape[0], self.hidden_size).to(device)  # 2 for bidirection
 
-        DEAP_HL_id = [0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10, 12, 13]
-        DEAP_HR_id = [16, 17, 20, 19, 21, 22, 25, 24, 26, 27, 29, 28, 30, 31]
-        DEAP_VL_id = [0, 3, 7, 11, 1, 4, 8, 13, 2, 6, 10, 12, 5, 9]
-        DEAP_VR_id = [16, 20, 25, 29, 17, 21, 26, 31, 19, 24, 28, 30, 22, 27]
+        # Updated for DEAP Dataset, SEED ones are in Models.py
+        HL_id = [0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10, 12, 13]
+        HR_id = [16, 17, 20, 19, 21, 22, 25, 24, 26, 27, 29, 28, 30, 31]
+        VL_id = [0, 3, 7, 11, 1, 4, 8, 13, 2, 6, 10, 12, 5, 9]
+        VR_id = [16, 20, 25, 29, 17, 21, 26, 31, 19, 24, 28, 30, 22, 27]
 
         eps = 1e-12
+
+        # Vertical
         x_vl, _ = self.RNN_VL(x[:, VL_id].permute(1, 0, 2), h0)
         x_vr, _ = self.RNN_VL(x[:, VR_id].permute(1, 0, 2), h0)
 
         x_v, _ = self.RNN_V(x_vr - x_vl, h0)
 
+        # Horizontal
         x_hl, _ = self.RNN_HL(x[:, HL_id].permute(1, 0, 2), h0)
         x_hr, _ = self.RNN_HL(x[:, HR_id].permute(1, 0, 2), h0)
 
         x_h, _ = self.RNN_V(x_hr - x_hl, h0)
 
-        x_v = self.fc_v(x_v.permute(1, 0, 2).reshape(x.shape[0], -1)).view(x.shape[0],-1)
-
+        # Combine (sum operation only)
+        x_v = self.fc_v(x_v.permute(1, 0, 2).reshape(x.shape[0], -1)).view(x.shape[0], -1)
         x_h = self.fc_h(x_h.permute(1, 0, 2).reshape(x.shape[0], -1)).view(x.shape[0], -1)
 
         x = x_v + x_h
         
-        #x = self.fc_c(x.view(x.shape[0],-1))
+        x = self.fc_c(x.view(x.shape[0], -1))
 
-        #x = torch.cat([out1- out2, out3- out4, out5- out6, out7- out8, out9 -out10]).permute(1,0,2)
-        
-        #x = self.ClassifierCNN(x)
+        # Unused, not clear
+        # x = torch.cat([out1- out2, out3- out4, out5- out6, out7- out8, out9 -out10]).permute(1,0,2)
+        # x = self.ClassifierCNN(x)
+        # x = self.fc(x.reshape(x.shape[0], -1))
 
-        #x = self.fc(x.reshape(x.shape[0], -1))
         return x
-
-
 
 
 class FrontalRnn(nn.Module):
